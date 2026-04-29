@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Private Video Player</title>
+    <style>
+        body { font-family: sans-serif; background: #000; color: #fff; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; }
+        .search-box { width: 100%; max-width: 600px; margin-bottom: 20px; }
+        input { width: 100%; padding: 15px; border-radius: 25px; border: 1px solid #333; background: #111; color: #fff; font-size: 1rem; outline: none; text-align: center; }
+        
+        /* プレイヤー全体のコンテナ */
+        #playerContainer { 
+            width: 100%; max-width: 600px; display: none; background: #111; 
+            border-radius: 15px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.8); 
+        }
+        
+        /* 動画を16:9または縦長で維持する枠 */
+        .video-wrapper { position: relative; width: 100%; background: #000; }
+        
+        /* iframeのスタイル */
+        iframe { width: 100%; aspect-ratio: 16 / 9; border: none; }
+        
+        /* TikTokなどの縦長動画用 */
+        .portrait iframe { aspect-ratio: 9 / 16; max-height: 80vh; }
+
+        .info { padding: 15px; text-align: left; border-top: 1px solid #222; }
+        .title { font-weight: bold; font-size: 1rem; color: #00d1b2; }
+    </style>
+</head>
+<body>
+
+    <div class="search-box">
+        <input type="text" id="urlInput" placeholder="動画URLを貼り付けて再生">
+    </div>
+
+    <div id="playerContainer">
+        <div id="videoWrapper" class="video-wrapper">
+            <!-- ここにiframeが流し込まれる -->
+        </div>
+        <div class="info">
+            <div id="videoTitle" class="title">動画を解析中...</div>
+        </div>
+    </div>
+
+    <script>
+        const urlInput = document.getElementById('urlInput');
+        const container = document.getElementById('playerContainer');
+        const wrapper = document.getElementById('videoWrapper');
+        const titleDisp = document.getElementById('videoTitle');
+
+        urlInput.addEventListener('input', async () => {
+            const url = urlInput.value.trim();
+            if (!url.startsWith('http')) return;
+
+            container.style.display = 'block';
+            wrapper.innerHTML = ""; // 前の動画を消す
+            titleDisp.innerText = "読み込み中...";
+
+            // 1. YouTubeの判定
+            const ytMatch = url.match(/(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)([^&?/\s]+)/);
+            if (ytMatch) {
+                const videoId = ytMatch[1];
+                wrapper.classList.remove('portrait');
+                wrapper.innerHTML = `<iframe src="https://www.youtube.com/embed/${videoId}?autoplay=1" allowfullscreen allow="autoplay"></iframe>`;
+                titleDisp.innerText = "YouTube Video / Shorts";
+                return;
+            }
+
+            // 2. TikTokの判定 (oEmbedを使用)
+            if (url.includes("tiktok.com")) {
+                try {
+                    const res = await fetch(`https://www.tiktok.com/oembed?url=${encodeURIComponent(url)}`);
+                    const data = await res.json();
+                    wrapper.classList.add('portrait');
+                    // TikTokの埋め込みは特殊なのでiframeに変換
+                    const videoId = data.embed_product_id || data.html.match(/data-video-id="(\d+)"/)[1];
+                    wrapper.innerHTML = `<iframe src="https://www.tiktok.com/embed/v2/${videoId}" style="height:700px;"></iframe>`;
+                    titleDisp.innerText = data.title || "TikTok Video";
+                } catch (e) {
+                    titleDisp.innerText = "TikTokの読み込みに失敗しました";
+                }
+                return;
+            }
+
+            // 3. その他 (Vimeoなど)
+            try {
+                const res = await fetch(`https://noembed.com/embed?url=${encodeURIComponent(url)}`);
+                const data = await res.json();
+                if (data.html) {
+                    wrapper.classList.remove('portrait');
+                    wrapper.innerHTML = data.html; // そのまま埋め込みコードを使用
+                    titleDisp.innerText = data.title || "External Video";
+                } else {
+                    titleDisp.innerText = "対応していないサイトです";
+                }
+            } catch (e) {
+                titleDisp.innerText = "エラーが発生しました";
+            }
+        });
+    </script>
+</body>
+</html>
