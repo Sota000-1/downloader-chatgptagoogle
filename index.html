@@ -2,102 +2,110 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Private Video Player</title>
+    <title>マルチ動画プレイヤー</title>
     <style>
-        body { font-family: sans-serif; background: #000; color: #fff; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; }
-        .search-box { width: 100%; max-width: 600px; margin-bottom: 20px; }
-        input { width: 100%; padding: 15px; border-radius: 25px; border: 1px solid #333; background: #111; color: #fff; font-size: 1rem; outline: none; text-align: center; }
+        body { font-family: sans-serif; text-align: center; padding: 40px 20px; background-color: #f4f4f9; }
+        h1 { color: #333; }
+        .input-area { margin-bottom: 30px; }
+        input { width: 60%; max-width: 500px; padding: 12px; font-size: 16px; border-radius: 5px; border: 1px solid #ccc; outline: none; }
+        button { padding: 12px 24px; font-size: 16px; cursor: pointer; border-radius: 5px; background-color: #ff4757; color: white; border: none; font-weight: bold; transition: 0.2s; }
+        button:hover { background-color: #ff6b81; }
         
-        /* プレイヤー全体のコンテナ */
-        #playerContainer { 
-            width: 100%; max-width: 600px; display: none; background: #111; 
-            border-radius: 15px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.8); 
+        #video-container { 
+            margin: 0 auto; 
+            max-width: 800px; 
+            min-height: 450px; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
         }
-        
-        /* 動画を16:9または縦長で維持する枠 */
-        .video-wrapper { position: relative; width: 100%; background: #000; }
-        
-        /* iframeのスタイル */
-        iframe { width: 100%; aspect-ratio: 16 / 9; border: none; }
-        
-        /* TikTokなどの縦長動画用 */
-        .portrait iframe { aspect-ratio: 9 / 16; max-height: 80vh; }
-
-        .info { padding: 15px; text-align: left; border-top: 1px solid #222; }
-        .title { font-weight: bold; font-size: 1rem; color: #00d1b2; }
+        iframe { 
+            width: 100%; 
+            height: 450px; 
+            border: none; 
+            border-radius: 10px; 
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2); 
+            background-color: black;
+        }
+        .error { color: #ff4757; font-weight: bold; font-size: 18px; }
     </style>
 </head>
 <body>
 
-    <div class="search-box">
-        <input type="text" id="urlInput" placeholder="動画URLを貼り付けて再生">
+    <h1>📺 マルチ動画プレイヤー</h1>
+    <p>YouTube, ニコニコ, X(Twitter), Vimeo, TikTok, PornhubのURLに対応！</p>
+    
+    <div class="input-area">
+        <input type="text" id="urlInput" placeholder="動画やポストのURLを貼り付け">
+        <button onclick="showVideo()">表示する</button>
     </div>
 
-    <div id="playerContainer">
-        <div id="videoWrapper" class="video-wrapper">
-            <!-- ここにiframeが流し込まれる -->
-        </div>
-        <div class="info">
-            <div id="videoTitle" class="title">動画を解析中...</div>
-        </div>
-    </div>
+    <!-- ここに動画が表示されます -->
+    <div id="video-container"></div>
 
     <script>
-        const urlInput = document.getElementById('urlInput');
-        const container = document.getElementById('playerContainer');
-        const wrapper = document.getElementById('videoWrapper');
-        const titleDisp = document.getElementById('videoTitle');
+        function showVideo() {
+            const url = document.getElementById('urlInput').value.trim();
+            const container = document.getElementById('video-container');
+            container.innerHTML = ""; // 一旦リセット
 
-        urlInput.addEventListener('input', async () => {
-            const url = urlInput.value.trim();
-            if (!url.startsWith('http')) return;
-
-            container.style.display = 'block';
-            wrapper.innerHTML = ""; // 前の動画を消す
-            titleDisp.innerText = "読み込み中...";
-
-            // 1. YouTubeの判定
-            const ytMatch = url.match(/(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)([^&?/\s]+)/);
-            if (ytMatch) {
-                const videoId = ytMatch[1];
-                wrapper.classList.remove('portrait');
-                wrapper.innerHTML = `<iframe src="https://www.youtube.com/embed/${videoId}?autoplay=1" allowfullscreen allow="autoplay"></iframe>`;
-                titleDisp.innerText = "YouTube Video / Shorts";
+            if (!url) {
+                container.innerHTML = `<p class="error">URLを入力してください！</p>`;
                 return;
             }
 
-            // 2. TikTokの判定 (oEmbedを使用)
-            if (url.includes("tiktok.com")) {
-                try {
-                    const res = await fetch(`https://www.tiktok.com/oembed?url=${encodeURIComponent(url)}`);
-                    const data = await res.json();
-                    wrapper.classList.add('portrait');
-                    // TikTokの埋め込みは特殊なのでiframeに変換
-                    const videoId = data.embed_product_id || data.html.match(/data-video-id="(\d+)"/)[1];
-                    wrapper.innerHTML = `<iframe src="https://www.tiktok.com/embed/v2/${videoId}" style="height:700px;"></iframe>`;
-                    titleDisp.innerText = data.title || "TikTok Video";
-                } catch (e) {
-                    titleDisp.innerText = "TikTokの読み込みに失敗しました";
-                }
-                return;
-            }
-
-            // 3. その他 (Vimeoなど)
-            try {
-                const res = await fetch(`https://noembed.com/embed?url=${encodeURIComponent(url)}`);
-                const data = await res.json();
-                if (data.html) {
-                    wrapper.classList.remove('portrait');
-                    wrapper.innerHTML = data.html; // そのまま埋め込みコードを使用
-                    titleDisp.innerText = data.title || "External Video";
+            // ==========================================
+            // ① X (旧Twitter) の場合の特別処理
+            // Xはiframeではなく、公式のウィジェット機能を使って表示します
+            // ==========================================
+            const xMatch = url.match(/(?:twitter\.com|x\.com)\/(?:#!\/)?(\w+)\/status\/(\d+)/);
+            if (xMatch) {
+                container.innerHTML = `<blockquote class="twitter-tweet" data-theme="dark"><a href="${url}"></a></blockquote>`;
+                // Twitterのスクリプトを読み込んで投稿を展開させる
+                if (window.twttr && window.twttr.widgets) {
+                    window.twttr.widgets.load(container);
                 } else {
-                    titleDisp.innerText = "対応していないサイトです";
+                    const script = document.createElement('script');
+                    script.src = "https://platform.twitter.com/widgets.js";
+                    document.body.appendChild(script);
                 }
-            } catch (e) {
-                titleDisp.innerText = "エラーが発生しました";
+                return; // Xの場合はここで処理終了
             }
-        });
+
+            // ==========================================
+            // ② 各サイトのURLから「埋め込み用URL」を作る処理
+            // ==========================================
+            let embedUrl = "";
+
+ 
+            const ytMatch = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([^#&?]*)/);
+            if (ytMatch) embedUrl = `https://www.youtube.com/embed/${ytMatch[1]}`;
+
+    
+            const nicoMatch = url.match(/(?:nicovideo\.jp\/watch\/|nico\.ms\/)(sm\d+|so\d+|nm\d+)/);
+            if (nicoMatch) embedUrl = `https://embed.nicovideo.jp/watch/${nicoMatch[1]}`;
+
+            const vimeoMatch = url.match(/vimeo\.com\/(?:video\/)?(\d+)/);
+            if (vimeoMatch) embedUrl = `https://player.vimeo.com/video/${vimeoMatch[1]}`;
+
+
+            const tiktokMatch = url.match(/tiktok\.com\/.*?video\/(\d+)/);
+            if (tiktokMatch) embedUrl = `https://www.tiktok.com/embed/v2/${tiktokMatch[1]}`;
+
+    
+            const phMatch = url.match(/pornhub\.com\/view_video\.php\?viewkey=([a-zA-Z0-9]+)/);
+            if (phMatch) embedUrl = `https://www.pornhub.com/embed/${phMatch[1]}`;
+
+            // ==========================================
+            // ③ iframeで表示する
+            // ==========================================
+            if (embedUrl) {
+                container.innerHTML = `<iframe src="${embedUrl}" allow="fullscreen; encrypted-media; picture-in-picture" allowfullscreen></iframe>`;
+            } else {
+                container.innerHTML = `<p class="error">対応していないURLか、形式が間違っています😭</p>`;
+            }
+        }
     </script>
+
 </body>
 </html>
